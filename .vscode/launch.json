@@ -1,0 +1,26 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python Debugger: sort_and_search.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/Users/arubique/github/sort-and-search/src/sort_and_search.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--data_dir",
+                "/Users/arubique/github/sort-and-search/results/",
+                "--dataset_name",
+                "imagenet-1k",
+                "--A_matrix_name",
+                "A.npy",
+                "--rank_number",
+                "350"
+            ]
+        }
+    ]
+}

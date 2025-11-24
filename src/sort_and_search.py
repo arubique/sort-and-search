@@ -1,13 +1,22 @@
 import argparse, os, pickle, gc, copy
 import numpy as np
 import pandas as pd
-from utils import seed_everything
+# from utils import seed_everything
 from tqdm import tqdm
+
+
+def seed_everything(seed):
+    np.random.seed(seed)
+    # torch.manual_seed(seed)
+    # torch.cuda.manual_seed(seed)
+    # torch.cuda.manual_seed_all(seed)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Search and Sort Framework')
     parser.add_argument('--data_dir', type=str, default='../results/', help='save files directory')
-    parser.add_argument('--dataset_name', type=str, default='lifelong-imagenet', choices=['lifelong-imagenet', 'lifelong-cifar10'])
+    parser.add_argument('--dataset_name', type=str, default='lifelong-imagenet', choices=['lifelong-imagenet', 'lifelong-cifar10', 'imagenet-1k'])
     parser.add_argument('--A_matrix_name', type=str, default='../feats/A.npy', help='file name of the A matrix')
     parser.add_argument('--rank_number', type=int, default=6000, help='Number of points used for ranking (rest used for querying)')
     parser.add_argument('--transpose', action='store_true', help='Transpose A matrix, invert the sampling and querying problem')
@@ -20,7 +29,7 @@ def uniform_sampling(query_len, num_queries):
     # Calculate step size and start point
     step = query_len//num_queries
     start = step//2 if query_len==step*num_queries else (query_len - step*num_queries)
-    
+
     # Sample K points
     sampled_points = np.arange(start, query_len, step)
     assert(len(sampled_points)==num_queries)
@@ -61,7 +70,7 @@ def recursive_sum_ranking(A, idx):
     sum_bins = A[idx].sum(axis=0)
     order = np.flip(np.argsort(sum_bins))
 
-    # an array of size m --> indexes of thresholds for each model in the ordered matrix 
+    # an array of size m --> indexes of thresholds for each model in the ordered matrix
     thresh_ordered = dynamic_programming_threshold(A[:, order])
     # permute to fix ordering
     sum_bins_ordered = sum_bins[order]
@@ -80,7 +89,7 @@ def recursive_sum_ranking(A, idx):
         # order withing current bin
         order[idx] = order[idx[new_order]]
     return order
-    
+
 
 def do_search_subsampled(A, order, query_size, mode='uniform'):
     A = A[:, order]
@@ -127,11 +136,11 @@ def do_searching(A, order, query_array):
         accpreds['Random_global_'+str(query)] = global_accpred
         diffs['Random_sample_'+str(query)] = sample_diff
         accpreds['Random_sample_'+str(query)] = sample_accpred
-        
+
     return diffs, accpreds
 
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     args = parse_args()
 
     # seed everything
@@ -141,9 +150,9 @@ if __name__ == '__main__':
     A = np.load(os.path.join(args.data_dir, args.A_matrix_name))
     if args.transpose:
         A = A.T
-    
+
     transpose_str = 'sample_eval' if args.transpose == True else 'model_eval'
-    # getting ranking and search idxes 
+    # getting ranking and search idxes
     if os.path.exists(os.path.join(args.data_dir, 'rank_idx_{}_{}_{}_{}_{}_.npy'.format(args.dataset_name, transpose_str, args.rank_number, args.ranking_mode, args.seed))):
         idx = np.load(os.path.join(args.data_dir, 'rank_idx_{}_{}_{}_{}_{}_.npy'.format(args.dataset_name, transpose_str, args.rank_number, args.ranking_mode, args.seed)))
     else:
@@ -154,10 +163,10 @@ if __name__ == '__main__':
             # get random K models for ranking
             idx = np.random.choice(A.shape[0], args.rank_number, replace=False)
         np.save(os.path.join(args.data_dir, 'rank_idx_{}_{}_{}_{}_{}_.npy'.format(args.dataset_name, transpose_str, args.rank_number, args.ranking_mode, args.seed)), idx)
-    
+
     # held-out test set
     search_idx = np.setdiff1d(np.arange(A.shape[0]), idx)
-    
+
     # getting ranking order of size m (if transpose) / n (if not transpose)
     if os.path.exists(os.path.join(args.data_dir, 'rank_order_{}_{}_{}_{}_{}.npy'.format(args.dataset_name, transpose_str, args.rank_number, args.ranking_mode, args.seed))):
         order = np.load(os.path.join(args.data_dir, 'rank_order_{}_{}_{}_{}_{}.npy'.format(args.dataset_name, transpose_str, args.rank_number, args.ranking_mode, args.seed)))
@@ -171,15 +180,17 @@ if __name__ == '__main__':
         np.save(os.path.join(args.data_dir, 'rank_order_{}_{}_{}_{}_{}.npy'.format(args.dataset_name, transpose_str, args.rank_number, args.ranking_mode, args.seed)), order)
 
 
-    
+
     if args.dataset_name == 'lifelong-imagenet':
         queries = [8, 16, 32] if args.transpose else [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
     elif args.dataset_name == 'lifelong-cifar10':
         queries = [8, 16, 32, 64, 128, 256, 512, 1024, 2048] if args.transpose else [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
+    elif args.dataset_name == 'imagenet-1k':
+        queries = [10, 50, 100, 1000]
     else:
         raise ValueError('Eval-setting unknown')
 
-   
+
     # getting search results
     A = A[search_idx]
     diffs, accpreds = do_searching(A, order, query_array=queries)
